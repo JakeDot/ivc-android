@@ -6,8 +6,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +27,9 @@ fun ChatScreen(
     onSignOut: () -> Unit
 ) {
     val messages by chatViewModel.messages.collectAsState()
+    val channel by chatViewModel.currentChannel.collectAsState()
+    val topic by chatViewModel.topic.collectAsState()
+
     var currentMessage by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
@@ -39,7 +42,18 @@ fun ChatScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "#general", style = MaterialTheme.typography.titleLarge) },
+                title = {
+                    Column {
+                        Text(text = channel, style = MaterialTheme.typography.titleLarge)
+                        if (!topic.isNullOrBlank()) {
+                            Text(
+                                text = topic!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.primary,
@@ -50,7 +64,7 @@ fun ChatScreen(
                         authViewModel.signOut()
                         onSignOut()
                     }) {
-                        Icon(imageVector = Icons.Default.ExitToApp, contentDescription = "Sign Out")
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sign Out")
                     }
                 }
             )
@@ -100,7 +114,7 @@ fun ChatScreen(
                         cursorColor = MaterialTheme.colorScheme.primary
                     ),
                     singleLine = true,
-                    placeholder = { Text("type message...", color = MaterialTheme.colorScheme.secondary) }
+                    placeholder = { Text("type message or /command...", color = MaterialTheme.colorScheme.secondary) }
                 )
                 IconButton(
                     onClick = {
@@ -112,7 +126,7 @@ fun ChatScreen(
                     modifier = Modifier.testTag("send_button")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Send,
+                        imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Send",
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -127,6 +141,12 @@ fun ChatMessageItem(message: com.example.data.Message) {
     val dateFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
     val timeString = dateFormat.format(Date(message.timestamp))
 
+    val senderColor = when (message.senderName) {
+        "*", "System" -> MaterialTheme.colorScheme.secondary
+        "COMSERV" -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -140,7 +160,7 @@ fun ChatMessageItem(message: com.example.data.Message) {
         )
         Text(
             text = "<${message.senderName}>",
-            color = MaterialTheme.colorScheme.primary,
+            color = senderColor,
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(end = 8.dp)
         )
