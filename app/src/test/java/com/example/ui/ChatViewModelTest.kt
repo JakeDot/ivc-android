@@ -19,7 +19,7 @@ class ChatViewModelTest {
 
     @Test
     fun testInitialState() {
-        assertEquals("#general", viewModel.currentChannel.value)
+        assertEquals("£general", viewModel.currentChannel.value)
         assertEquals(null, viewModel.topic.value)
         assertEquals("Anonymous", viewModel.nickname.value)
     }
@@ -50,8 +50,8 @@ class ChatViewModelTest {
 
     @Test
     fun testSendMessageJoinChannelAndTopic() {
-        viewModel.sendMessage("/join #kotlin")
-        assertEquals("#kotlin", viewModel.currentChannel.value)
+        viewModel.sendMessage("/join £kotlin")
+        assertEquals("£kotlin", viewModel.currentChannel.value)
 
         viewModel.sendMessage("/topic Kotlin rocks")
         assertEquals("Kotlin rocks", viewModel.topic.value)
