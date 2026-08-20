@@ -17,8 +17,10 @@ class IvcClientTest {
     @Test
     fun testConnectionStateLifecycle() {
         assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
+        // With EventSource logic, client.connect() executes asynchronously,
+        // so it changes to CONNECTING immediately rather than CONNECTED.
         client.connect()
-        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+        assertEquals(ConnectionState.CONNECTING, client.connectionState.value)
         client.disconnect()
         assertEquals(ConnectionState.DISCONNECTED, client.connectionState.value)
     }
@@ -129,7 +131,7 @@ class IvcClientTest {
     @Test
     fun testQuitCommandAndAlias() {
         client.connect()
-        assertEquals(ConnectionState.CONNECTED, client.connectionState.value)
+        assertEquals(ConnectionState.CONNECTING, client.connectionState.value)
 
         val result = client.processInput("/q Bye everyone!")
         assertTrue(result is CommandResult.Quit)

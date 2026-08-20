@@ -3,6 +3,15 @@ package com.aistudio.ivccx.pqrsw.client
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.sse.EventSource
+import okhttp3.sse.EventSourceListener
+import okhttp3.sse.EventSources
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import com.google.gson.Gson
+import java.util.concurrent.TimeUnit
 
 typealias CommandHandler = (args: String, senderNick: String) -> String
 
@@ -38,6 +47,15 @@ class IvcClient {
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
 
+    private var identity: IvcIdentity? = null
+    private var baseUrl: String? = null
+    private val httpClient: OkHttpClient = OkHttpClient.Builder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
+    private val gson = Gson()
+    private var eventSource: EventSource? = null
+    private var sseMessageCallback: ((String) -> Unit)? = null
+
     private val _nickname = MutableStateFlow("Anonymous")
     val nickname: StateFlow<String> = _nickname.asStateFlow()
 
@@ -52,24 +70,92 @@ class IvcClient {
 
     private val registeredCommands = mutableMapOf<String, RegisteredCommand>()
 
+    fun onSseMessage(callback: (String) -> Unit) {
+        sseMessageCallback = callback
+    }
+
     fun connect(serverUrl: String = "ivc+https://IVC.cx", fallbackUrl: String = "ivc+irc://IVC.cx") {
         _connectionState.value = ConnectionState.CONNECTING
 
         // Parse backend protocol from URLs like ivc+https://...
-        val protocolMatch = Regex("^ivc\\+([a-zA-Z0-9]+)://").find(serverUrl)
+        var selectedUrl = serverUrl
+        var protocolMatch = Regex("^ivc\\+([a-zA-Z0-9]+)://(.*)").find(serverUrl)
         if (protocolMatch != null) {
             _backendProtocol.value = protocolMatch.groupValues[1]
+            baseUrl = protocolMatch.groupValues[1] + "://" + protocolMatch.groupValues[2]
         } else {
-            val fallbackMatch = Regex("^ivc\\+([a-zA-Z0-9]+)://").find(fallbackUrl)
+            val fallbackMatch = Regex("^ivc\\+([a-zA-Z0-9]+)://(.*)").find(fallbackUrl)
             _backendProtocol.value = fallbackMatch?.groupValues?.get(1)
+            baseUrl = fallbackMatch?.let { it.groupValues[1] + "://" + it.groupValues[2] }
         }
 
-        // Connection logic
-        _connectionState.value = ConnectionState.CONNECTED
+        if (baseUrl != null) {
+            baseUrl = baseUrl!!.replace(Regex("/$"), "")
+        }
+
+        if (identity == null) {
+            identity = IvcIdentity(_nickname.value)
+        }
+
+        // Connection logic (SSE)
+        val sseUrl = "$baseUrl/api/ivc/stream"
+        val request = Request.Builder()
+            .url(sseUrl)
+            .header("Accept", "text/event-stream")
+            .build()
+
+        val factory = EventSources.createFactory(httpClient)
+        eventSource = factory.newEventSource(request, object : EventSourceListener() {
+            override fun onOpen(eventSource: EventSource, response: okhttp3.Response) {
+                _connectionState.value = ConnectionState.CONNECTED
+            }
+
+            override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
+                sseMessageCallback?.invoke(data)
+            }
+
+            override fun onClosed(eventSource: EventSource) {
+                _connectionState.value = ConnectionState.DISCONNECTED
+            }
+
+            override fun onFailure(eventSource: EventSource, t: Throwable?, response: okhttp3.Response?) {
+                _connectionState.value = ConnectionState.DISCONNECTED
+                t?.printStackTrace()
+            }
+        })
     }
 
     fun disconnect() {
+        eventSource?.cancel()
+        eventSource = null
         _connectionState.value = ConnectionState.DISCONNECTED
+    }
+
+    fun sendMessage(targetChannel: String, message: String) {
+        val base = baseUrl ?: throw IllegalStateException("Not connected")
+        val ident = identity ?: throw IllegalStateException("Identity not set")
+
+        val payload = mapOf("msg" to message)
+        val bodyString = gson.toJson(payload)
+
+        val path = "/" + targetChannel.replace("#", "%23").replace("£", "%23")
+        val authHeaders = ident.generateAuthHeaders("POST", path, bodyString)
+
+        val requestBody = bodyString.toRequestBody("application/json".toMediaType())
+        val reqBuilder = Request.Builder()
+            .url(base + path)
+            .post(requestBody)
+
+        for ((key, value) in authHeaders) {
+            reqBuilder.header(key, value)
+        }
+
+        val request = reqBuilder.build()
+        httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw RuntimeException("HTTP ${response.code}: ${response.body?.string()}")
+            }
+        }
     }
 
     fun putData(endpoint: String, payload: String): Boolean {
@@ -86,6 +172,9 @@ class IvcClient {
         val trimmed = newNick.trim()
         if (trimmed.isNotBlank()) {
             _nickname.value = trimmed
+            if (_connectionState.value != ConnectionState.CONNECTED) {
+                identity = IvcIdentity(trimmed)
+            }
         }
     }
 
