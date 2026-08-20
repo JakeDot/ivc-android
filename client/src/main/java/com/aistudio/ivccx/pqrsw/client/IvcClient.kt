@@ -41,22 +41,45 @@ class IvcClient {
     private val _nickname = MutableStateFlow("Anonymous")
     val nickname: StateFlow<String> = _nickname.asStateFlow()
 
-    private val _currentChannel = MutableStateFlow("#general")
+    private val _currentChannel = MutableStateFlow("£general")
     val currentChannel: StateFlow<String> = _currentChannel.asStateFlow()
 
     private val _topic = MutableStateFlow<String?>(null)
     val topic: StateFlow<String?> = _topic.asStateFlow()
 
+    private val _backendProtocol = MutableStateFlow<String?>(null)
+    val backendProtocol: StateFlow<String?> = _backendProtocol.asStateFlow()
+
     private val registeredCommands = mutableMapOf<String, RegisteredCommand>()
 
-    fun connect(serverUrl: String = "https://IVC.cx", fallbackUrl: String = "irc://IVC.cx") {
+    fun connect(serverUrl: String = "ivc+https://IVC.cx", fallbackUrl: String = "ivc+irc://IVC.cx") {
         _connectionState.value = ConnectionState.CONNECTING
+
+        // Parse backend protocol from URLs like ivc+https://...
+        val protocolMatch = Regex("^ivc\\+([a-zA-Z0-9]+)://").find(serverUrl)
+        if (protocolMatch != null) {
+            _backendProtocol.value = protocolMatch.groupValues[1]
+        } else {
+            val fallbackMatch = Regex("^ivc\\+([a-zA-Z0-9]+)://").find(fallbackUrl)
+            _backendProtocol.value = fallbackMatch?.groupValues?.get(1)
+        }
+
         // Connection logic
         _connectionState.value = ConnectionState.CONNECTED
     }
 
     fun disconnect() {
         _connectionState.value = ConnectionState.DISCONNECTED
+    }
+
+    fun putData(endpoint: String, payload: String): Boolean {
+        // Simulated HTTP PUT
+        return true
+    }
+
+    fun deleteData(endpoint: String): Boolean {
+        // Simulated HTTP DELETE
+        return true
     }
 
     fun setNickname(newNick: String) {
@@ -69,7 +92,7 @@ class IvcClient {
     fun setChannel(channel: String) {
         val trimmed = channel.trim()
         if (trimmed.isNotBlank()) {
-            _currentChannel.value = if (trimmed.startsWith("#")) trimmed else "#$trimmed"
+            _currentChannel.value = if (trimmed.startsWith("£")) trimmed else "£$trimmed"
         }
     }
 
@@ -167,10 +190,10 @@ class IvcClient {
 
             "join", "j" -> {
                 if (args.isBlank()) {
-                    CommandResult.Error("Usage: /join <#channel>")
+                    CommandResult.Error("Usage: /join <£channel>")
                 } else {
                     val oldChannel = _currentChannel.value
-                    val newChannel = if (args.startsWith("#")) args else "#$args"
+                    val newChannel = if (args.startsWith("£")) args else "£$args"
                     _currentChannel.value = newChannel
                     CommandResult.JoinChannel(oldChannel, newChannel)
                 }
@@ -199,7 +222,7 @@ class IvcClient {
                     Available IRC commands:
                     /nick <new_nick> (alias: /nickname) - Change your nickname
                     /me <action> - Perform an action
-                    /join <#channel> (alias: /j) - Join a channel
+                    /join <£channel> (alias: /j) - Join a channel
                     /topic [new_topic] (alias: /t) - Display or set the channel topic
                     /comserv [command] - COMSERV bot & registered commands
                     /msg <user> <message> (alias: /query) - Send a private message

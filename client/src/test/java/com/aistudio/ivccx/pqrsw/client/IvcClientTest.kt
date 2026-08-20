@@ -69,19 +69,19 @@ class IvcClientTest {
 
     @Test
     fun testJoinChannelCommandAndAlias() {
-        val result1 = client.processInput("/join #android")
+        val result1 = client.processInput("/join £android")
         assertTrue(result1 is CommandResult.JoinChannel)
         val join1 = result1 as CommandResult.JoinChannel
-        assertEquals("#general", join1.oldChannel)
-        assertEquals("#android", join1.newChannel)
-        assertEquals("#android", client.currentChannel.value)
+        assertEquals("£general", join1.oldChannel)
+        assertEquals("£android", join1.newChannel)
+        assertEquals("£android", client.currentChannel.value)
 
         val result2 = client.processInput("/j kotlin")
         assertTrue(result2 is CommandResult.JoinChannel)
         val join2 = result2 as CommandResult.JoinChannel
-        assertEquals("#android", join2.oldChannel)
-        assertEquals("#kotlin", join2.newChannel)
-        assertEquals("#kotlin", client.currentChannel.value)
+        assertEquals("£android", join2.oldChannel)
+        assertEquals("£kotlin", join2.newChannel)
+        assertEquals("£kotlin", client.currentChannel.value)
     }
 
     @Test
@@ -89,13 +89,13 @@ class IvcClientTest {
         val showResult1 = client.processInput("/topic")
         assertTrue(showResult1 is CommandResult.ShowTopic)
         val show1 = showResult1 as CommandResult.ShowTopic
-        assertEquals("#general", show1.channel)
+        assertEquals("£general", show1.channel)
         assertEquals(null, show1.topic)
 
         val setTopicResult = client.processInput("/topic Welcome to IVC chat!")
         assertTrue(setTopicResult is CommandResult.TopicChange)
         val topicChange = setTopicResult as CommandResult.TopicChange
-        assertEquals("#general", topicChange.channel)
+        assertEquals("£general", topicChange.channel)
         assertEquals("Welcome to IVC chat!", topicChange.newTopic)
         assertEquals("Welcome to IVC chat!", client.topic.value)
 
